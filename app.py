@@ -30,8 +30,10 @@ log = logging.getLogger("app")
 # -----------------------------------------------------------------------------
 # Config
 # -----------------------------------------------------------------------------
-HOST = os.getenv("MCP_SERVER_HOST", "127.0.0.1")
-PORT = int(os.getenv("MCP_SERVER_PORT", "5000"))
+HOST = os.getenv("MCP_SERVER_HOST", "0.0.0.0")
+# Render (and most PaaS hosts) inject PORT and expect the app to bind to it.
+# Falls back to MCP_SERVER_PORT for local/manual runs, then 5000.
+PORT = int(os.getenv("PORT", os.getenv("MCP_SERVER_PORT", "5000")))
 
 DB_PATH = os.getenv("AGENT_DB_PATH", "agent_memory.db")
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
@@ -351,8 +353,12 @@ def docs():
 # Main
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
+    # debug=True exposes Werkzeug's interactive debugger on unhandled
+    # exceptions, which allows arbitrary code execution if someone reaches
+    # the error page. Defaulting to off; set FLASK_DEBUG=true for local dev.
+    debug_mode = os.getenv("FLASK_DEBUG", "false").lower() in {"1", "true", "yes"}
     log.info(f"Event sink set")
     log.info(f"Starting MCP server (Socket.IO): http://{HOST}:{PORT}/mcp")
     # Important: Werkzeug dev server can't handle websockets reliably; our UI uses polling only.
-    socketio.run(app, host=HOST, port=PORT, debug=True)
+    socketio.run(app, host=HOST, port=PORT, debug=debug_mode)
 
