@@ -11,11 +11,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # import at all on Python 3.10+. Patching the installed package here — rather
 # than pinning to an old Python image and hoping it stays available forever —
 # keeps this working on any current Python version.
-RUN python -c "import jsonrpcserver, os; print(os.path.dirname(jsonrpcserver.__file__))" > /tmp/pkgpath && \
-    PKGPATH=$(cat /tmp/pkgpath) && \
-    sed -i 's/from collections import Mapping, Sequence/from collections.abc import Mapping, Sequence/' "$PKGPATH/request_utils.py" && \
-    sed -i 's/from collections import MutableMapping/from collections.abc import MutableMapping/' "$PKGPATH/methods.py"
-
+RUN SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])") && \
+    sed -i 's/from collections import Mapping, Sequence/from collections.abc import Mapping, Sequence/' "$SITE_PACKAGES/jsonrpcserver/request_utils.py" && \
+    sed -i 's/from collections import MutableMapping/from collections.abc import MutableMapping/' "$SITE_PACKAGES/jsonrpcserver/methods.py"
 COPY . .
 
 ENV PYTHONUNBUFFERED=1
