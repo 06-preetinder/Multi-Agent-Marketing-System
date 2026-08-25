@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Agent Console</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #12151B;
+      --panel: #1A1F29;
+      --panel-2: #202634;
+      --line: #262D3A;
+      --text: #E8EAED;
+      --text-dim: #8891A0;
+      --text-faint: #565F70;
+
+      /* agent identity colors — consistent left-border coding across the whole page */
+      --triage: #E8A33D;
+      --engage: #3E9E8E;
+      --optimize: #8B7FD1;
+
+      /* memory-tier depth ramp — deliberately distinct from agent colors so the
+         two color languages never get confused */
+      --mem-short: #B8C2D4;
+      --mem-long: #4A5568;
+      --mem-episodic: #7C8CA6;
+      --mem-semantic: #6FA8A0;
+
+      --ok: #4FBF88;
+      --bad: #E86A6A;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+    header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 16px 24px; border-bottom: 1px solid var(--line);
+      position: sticky; top: 0; background: var(--bg); z-index: 10;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); flex-shrink: 0; }
+    .dot.ok { background: var(--ok); box-shadow: 0 0 0 3px rgba(79,191,136,0.15); }
+    .dot.bad { background: var(--bad); box-shadow: 0 0 0 3px rgba(232,106,106,0.15); }
+    .eyebrow { font-family: 'JetBrains Mono'; font-size: 11px; letter-spacing: 0.15em; color: var(--text-faint); text-transform: uppercase; }
+    header .title { font-family: 'JetBrains Mono'; font-weight: 500; font-size: 14px; }
+    .spacer { flex: 1; }
+    .hostinfo { font-family: 'JetBrains Mono'; font-size: 12px; color: var(--text-faint); }
+
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 24px; }
+
+    /* ---------- Memory strata (signature element) ---------- */
+    .strata-label { font-family: 'JetBrains Mono'; font-size: 11px; letter-spacing: 0.1em; color: var(--text-faint); text-transform: uppercase; margin: 0 0 10px; }
+    .strata { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 28px; }
+    .tier { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+    .tier-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .tier-name { font-family: 'JetBrains Mono'; font-size: 12px; color: var(--text-dim); }
+    .tier-count { font-family: 'JetBrains Mono'; font-size: 20px; font-weight: 600; }
+    .tier-bar { height: 4px; border-radius: 2px; background: var(--panel-2); overflow: hidden; }
+    .tier-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+    .tier[data-tier="short_term"] .tier-fill { background: var(--mem-short); animation: pulse 1.8s ease-in-out infinite; }
+    .tier[data-tier="long_term"] .tier-fill { background: var(--mem-long); }
+    .tier[data-tier="episodic"] .tier-fill { background: var(--mem-episodic); }
+    .tier[data-tier="semantic"] .tier-fill { background: var(--mem-semantic); }
+    .tier-hint { font-size: 11px; color: var(--text-faint); margin-top: 6px; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+    @media (prefers-reduced-motion: reduce) { .tier-fill { animation: none !important; } }
+
+    /* ---------- Agent controls ---------- */
+    .agents { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+    .agent-card { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--c); border-radius: 10px; padding: 14px; }
+    .agent-card[data-agent="triage"] { --c: var(--triage); }
+    .agent-card[data-agent="engage"] { --c: var(--engage); }
+    .agent-card[data-agent="optimize"] { --c: var(--optimize); }
+    .agent-name { font-family: 'JetBrains Mono'; font-size: 13px; font-weight: 500; color: var(--c); margin-bottom: 2px; }
+    .agent-role { font-size: 12px; color: var(--text-dim); margin-bottom: 10px; }
+    .agent-row { display: flex; gap: 8px; }
+    input[type="text"] {
+      background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+      padding: 8px 10px; border-radius: 6px; outline: none; font-family: 'JetBrains Mono'; font-size: 13px;
+      flex: 1; min-width: 0;
+    }
+    input[type="text"]:focus { border-color: var(--c); }
+    button {
+      background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+      padding: 8px 12px; border-radius: 6px; cursor: pointer; font-family: 'JetBrains Mono'; font-size: 12px;
+      white-space: nowrap;
+    }
+    button:hover { border-color: var(--c, var(--text-faint)); }
+    .agent-card button { border-color: var(--c); color: var(--c); }
+
+    /* ---------- Utility / filter row ---------- */
+    .utility { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+    .utility input[type="text"] { max-width: 260px; }
+    .small { font-size: 12px; color: var(--text-dim); }
+
+    details.neo { margin-bottom: 20px; }
+    details.neo summary { cursor: pointer; font-family: 'JetBrains Mono'; font-size: 12px; color: var(--text-dim); padding: 8px 0; }
+    details.neo .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 8px 0; }
+
+    /* ---------- Feed ---------- */
+    .feed { display: grid; gap: 10px; }
+    .card {
+      background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--c, var(--text-faint));
+      border-radius: 10px; padding: 12px 14px;
+    }
+    .card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .eventname { font-family: 'JetBrains Mono'; font-weight: 500; font-size: 13px; }
+    .ts { font-size: 11px; color: var(--text-faint); margin-left: auto; }
+    .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+    .tag { font-family: 'JetBrains Mono'; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text-dim); }
+    .tag .k { color: var(--text-faint); }
+
+    .mem-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+    .mem-chip {
+      font-family: 'JetBrains Mono'; font-size: 10px; padding: 2px 7px; border-radius: 4px;
+      border: 1px solid; text-transform: uppercase; letter-spacing: 0.03em;
+    }
+    .mem-chip.write { background: rgba(255,255,255,0.04); }
+    .mem-chip[data-tier="short_term"] { color: var(--mem-short); border-color: var(--mem-short); }
+    .mem-chip[data-tier="long_term"] { color: var(--mem-long); border-color: var(--mem-long); background: rgba(74,85,104,0.25); }
+    .mem-chip[data-tier="episodic"] { color: var(--mem-episodic); border-color: var(--mem-episodic); }
+    .mem-chip[data-tier="semantic"] { color: var(--mem-semantic); border-color: var(--mem-semantic); }
+    .mem-chip.read { opacity: 0.6; border-style: dashed; }
+
+    .json { margin-top: 4px; padding: 10px; background: var(--panel-2); border: 1px dashed var(--line); border-radius: 8px; overflow: auto; max-height: 220px; font-family: 'JetBrains Mono'; font-size: 11px; color: var(--text-dim); }
+  </style>
+</head>
+<body>
+  <header>
+    <div id="statusDot" class="dot" title="Socket status"></div>
+    <span class="eyebrow">Agent console</span>
+    <span class="title">Marketing Multi-Agent System</span>
+    <div class="spacer"></div>
+    <div class="hostinfo" id="hostInfo"></div>
+  </header>
+
+  <div class="wrap">
+
+    <!-- Memory strata: signature element, live counts per tier -->
+    <p class="strata-label">Memory strata — live</p>
+    <div class="strata" id="strataBand">
+      <div class="tier" data-tier="short_term">
+        <div class="tier-head"><span class="tier-name">Short-term</span><span class="tier-count" id="cnt-short_term">–</span></div>
+        <div class="tier-bar"><div class="tier-fill" id="fill-short_term" style="width:0%"></div></div>
+        <p class="tier-hint">SQLite · decays, promotes after 7d</p>
+      </div>
+      <div class="tier" data-tier="long_term">
+        <div class="tier-head"><span class="tier-name">Long-term</span><span class="tier-count" id="cnt-long_term">–</span></div>
+        <div class="tier-bar"><div class="tier-fill" id="fill-long_term" style="width:0%"></div></div>
+        <p class="tier-hint">SQLite · persists</p>
+      </div>
+      <div class="tier" data-tier="episodic">
+        <div class="tier-head"><span class="tier-name">Episodic</span><span class="tier-count" id="cnt-episodic">–</span></div>
+        <div class="tier-bar"><div class="tier-fill" id="fill-episodic" style="width:0%"></div></div>
+        <p class="tier-hint">SQLite · capped, rolls up</p>
+      </div>
+      <div class="tier" data-tier="semantic">
+        <div class="tier-head"><span class="tier-name">Semantic</span><span class="tier-count" id="cnt-semantic">–</span></div>
+        <div class="tier-bar"><div class="tier-fill" id="fill-semantic" style="width:0%"></div></div>
+        <p class="tier-hint">Neo4j · graph edges</p>
+      </div>
+    </div>
+
+    <!-- Agent controls -->
+    <div class="agents">
+      <div class="agent-card" data-agent="triage">
+        <div class="agent-name">Lead Triage</div>
+        <div class="agent-role">Categorize a lead → short-term + episodic</div>
+        <div class="agent-row">
+          <input id="leadInput" type="text" placeholder="L0000001" />
+          <button id="btnTriage">Triage</button>
+        </div>
+      </div>
+      <div class="agent-card" data-agent="engage">
+        <div class="agent-name">Engagement</div>
+        <div class="agent-role">Act on a qualified lead → all 4 tiers</div>
+        <div class="agent-row">
+          <button id="btnEngage" style="flex:1">Engage (CQ)</button>
+        </div>
+      </div>
+      <div class="agent-card" data-agent="optimize">
+        <div class="agent-name">Campaign Optimization</div>
+        <div class="agent-role">Decide on a campaign → short-term + episodic + semantic</div>
+        <div class="agent-row">
+          <input id="campInput" type="text" placeholder="CMP0022" />
+          <button id="btnOptimize">Optimize</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter / reload -->
+    <div class="utility">
+      <input id="filterBox" type="text" placeholder="Filter: lead_id, campaign_id, event…" />
+      <button id="clearBtn">Clear</button>
+      <button id="reloadBtn">Reload last 50</button>
+      <span class="small">events: lead_triaged · engagement_sent · campaign_decided · neo4j_demo</span>
+    </div>
+
+    <!-- Neo4j utilities, tucked away — secondary to the main demo -->
+    <details class="neo">
+      <summary>Neo4j utilities</summary>
+      <div class="row">
+        <button id="btnNeoPing">Ping</button>
+        <input id="neoObj" type="text" placeholder="channel e.g. Email" style="max-width:180px" />
+        <button id="btnNeoDemo">Create demo edge</button>
+        <span id="neoStatus" class="small"></span>
+      </div>
+    </details>
+
+    <!-- Feed -->
+    <div id="feed" class="feed"></div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script>
+    const host      = location.origin.replace(/\/$/,'');
+    const statusDot = document.getElementById('statusDot');
+    const hostInfo  = document.getElementById('hostInfo');
+    const feedEl    = document.getElementById('feed');
+    const filterEl  = document.getElementById('filterBox');
+    const clearBtn  = document.getElementById('clearBtn');
+    const reloadBtn = document.getElementById('reloadBtn');
+
+    const leadInput   = document.getElementById('leadInput');
+    const campInput   = document.getElementById('campInput');
+    const btnTriage   = document.getElementById('btnTriage');
+    const btnEngage   = document.getElementById('btnEngage');
+    const btnOptimize = document.getElementById('btnOptimize');
+    const btnNeoPing  = document.getElementById('btnNeoPing');
+    const neoObj      = document.getElementById('neoObj');
+    const btnNeoDemo  = document.getElementById('btnNeoDemo');
+
+    hostInfo.textContent = host;
+
+    let eventBuf = [];
+
+    // event name -> agent color var, for the feed card's left border
+    const AGENT_COLOR = {
+      lead_triaged: 'var(--triage)', client_triage: 'var(--triage)',
+      engagement_sent: 'var(--engage)', client_engage: 'var(--engage)',
+      campaign_decided: 'var(--optimize)', client_optimize: 'var(--optimize)',
+      neo4j_demo: 'var(--mem-semantic)',
+    };
+
+    function escapeHtml(s){return String(s).replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]))}
+    function tag(k, v) { if (v==null || v==='') return ''; return `<span class="tag"><span class="k">${k}</span>: ${escapeHtml(String(v))}</span>`; }
+
+    // Renders the reads/writes chips a single agent action reported via result._memory
+    function memChips(mem) {
+      if (!mem) return '';
+      const writes = (mem.writes || []).map(t => `<span class="mem-chip write" data-tier="${t}">${t.replace('_',' ')}</span>`).join('');
+      const reads  = (mem.reads  || []).map(t => `<span class="mem-chip read" data-tier="${t}">read ${t.replace('_',' ')}</span>`).join('');
+      if (!writes && !reads) return '';
+      return `<div class="mem-chips">${reads}${writes}</div>`;
+    }
+
+    function card({evt, ts, data}) {
+      const el = document.createElement('div');
+      el.className = 'card';
+      el.style.setProperty('--c', AGENT_COLOR[evt] || 'var(--text-faint)');
+      el.innerHTML = `
+        <div class="card-top">
+          <span class="eventname">${escapeHtml(evt)}</span>
+          <span class="ts mono">${new Date(ts).toLocaleTimeString()}</span>
+        </div>
+        <div class="meta">
+          ${tag('lead_id', data.lead_id)}
+          ${tag('campaign_id', data.campaign_id)}
+          ${tag('action_type', data.action_type)}
+          ${tag('variant_id', data.variant_id)}
+          ${tag('decision', data.decision)}
+          ${tag('kpi', data.kpi)}
+        </div>
+        ${memChips(data._memory)}
+        <pre class="json">${escapeHtml(JSON.stringify(data, null, 2))}</pre>
+      `;
+      return el;
+    }
+
+    function render() {
+      const q = (filterEl.value || '').trim().toLowerCase();
+      const view = q
+        ? eventBuf.filter(it => (it.evt + ' ' + JSON.stringify(it.data)).toLowerCase().includes(q))
+        : eventBuf;
+      feedEl.innerHTML = '';
+      for (const item of view) feedEl.appendChild(card(item));
+    }
+
+    function pushEvent(evt, payload) {
+      eventBuf.unshift({ evt, ts: Date.now(), data: payload || {} });
+      if (eventBuf.length > 500) eventBuf.pop();
+      render();
+      refreshMemorySummary();
+    }
+
+    // ---------- Memory strata polling ----------
+    const TIER_MAX_HINT = { short_term: 30, long_term: 30, episodic: 30, semantic: 15 }; // scales the bar fill visually
+    async function refreshMemorySummary() {
+      try {
+        const r = await fetch('/api/memory/summary');
+        if (!r.ok) return;
+        const j = await r.json();
+        for (const tier of ['short_term','long_term','episodic','semantic']) {
+          const count = j[tier] ?? 0;
+          const cntEl = document.getElementById(`cnt-${tier}`);
+          const fillEl = document.getElementById(`fill-${tier}`);
+          if (cntEl) cntEl.textContent = count;
+          if (fillEl) fillEl.style.width = Math.min(100, (count / TIER_MAX_HINT[tier]) * 100) + '%';
+        }
+      } catch (e) { /* summary endpoint optional — fail quietly */ }
+    }
+
+    function getNeoStatusEl() { return document.getElementById('neoStatus'); }
+    function setNeoStatus(text, state) {
+      const el = getNeoStatusEl();
+      el.textContent = text;
+      el.style.color = state === 'ok' ? '#4FBF88' : state === 'work' ? '#8891A0' : '#E86A6A';
+    }
+
+    // ---------- Socket.IO ----------
+    const socket = io({ transports: ['polling'], upgrade: false });
+    socket.on('connect', () => { statusDot.classList.remove('bad'); statusDot.classList.add('ok'); });
+    socket.on('disconnect', () => { statusDot.classList.remove('ok'); statusDot.classList.add('bad'); });
+
+    ['lead_triaged','engagement_sent','campaign_decided','neo4j_demo'].forEach(name => {
+      socket.on(name, (payload) => {
+        pushEvent(name, payload || {});
+        if (name === 'neo4j_demo') setNeoStatus('Edge created', 'ok');
+      });
+    });
+    if (socket.onAny) {
+      socket.onAny((name, ...args) => {
+        if (!['lead_triaged','engagement_sent','campaign_decided','neo4j_demo'].includes(name)) {
+          pushEvent(name, args?.[0] || {});
+        }
+      });
+    }
+
+    // ---------- Backfill ----------
+    async function loadRecent(limit=50){
+      try{
+        const r = await fetch(`/api/interactions/recent?limit=${encodeURIComponent(limit)}`);
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        const arr = await r.json();
+        for(const row of arr){
+          let data = row;
+          if (row && typeof row.payload === 'string' && row.payload.trim().length){
+            try { data = JSON.parse(row.payload); } catch(_){}
+          }
+          const evt = row.event_type || data.event_type || data.event || 'interaction';
+          pushEvent(evt, data);
+        }
+      } catch(e){ console.warn('recent load failed:', e); }
+    }
+
+    async function postJSON(url, body){
+      const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body || {}) });
+      if(!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+      return r.json();
+    }
+
+    // ---------- Button handlers ----------
+    btnTriage.addEventListener('click', async ()=>{
+      const lead_id = (leadInput.value || '').trim();
+      if(!lead_id) return alert('Enter a lead_id (e.g., L0000001)');
+      try { pushEvent('client_triage', await postJSON('/api/demo/triage', { lead_id })); }
+      catch(e){ alert('Triage failed: '+e.message); }
+    });
+
+    btnEngage.addEventListener('click', async ()=>{
+      const lead_id = (leadInput.value || '').trim();
+      if(!lead_id) return alert('Enter a lead_id in the Triage field above');
+      try { pushEvent('client_engage', await postJSON('/api/demo/engage', { lead_id, category: 'Campaign Qualified' })); }
+      catch(e){ alert('Engage failed: '+e.message); }
+    });
+
+    btnOptimize.addEventListener('click', async ()=>{
+      const campaign_id = (campInput.value || '').trim();
+      if(!campaign_id) return alert('Enter a campaign_id (e.g., CMP0022)');
+      try { pushEvent('client_optimize', await postJSON('/api/demo/optimize', { campaign_id })); }
+      catch(e){ alert('Optimize failed: '+e.message); }
+    });
+
+    btnNeoPing.addEventListener('click', async ()=>{
+      setNeoStatus('pinging…', 'work');
+      try{
+        const r = await fetch('/api/neo4j/ping');
+        const j = await r.json();
+        setNeoStatus(j.ok ? `Neo4j OK (${j.version || 'connected'})` : `Neo4j disabled: ${j.reason || 'no driver'}`, j.ok ? 'ok' : 'fail');
+      }catch(e){ setNeoStatus('Neo4j ping failed', 'fail'); }
+    });
+
+    btnNeoDemo.addEventListener('click', async ()=>{
+      const lead_id = (leadInput?.value || '').trim();
+      const object  = (neoObj?.value || 'Email').trim();
+      if (!lead_id) return alert('Enter a lead_id (e.g., L0000001)');
+      setNeoStatus('creating edge…', 'work');
+      try{
+        const r = await fetch('/api/neo4j/demo', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ lead_id, predicate:'engaged_via', object })
+        });
+        const j = await r.json().catch(() => ({}));
+        if (r.ok && j && j.ok) { setNeoStatus('Edge created', 'ok'); pushEvent('neo4j_demo', j); }
+        else { setNeoStatus('Demo failed', 'fail'); alert('Neo4j demo failed: ' + (j.error || r.statusText)); }
+      } catch(e){ setNeoStatus('Neo4j demo failed', 'fail'); alert('Neo4j demo failed: ' + e.message); }
+    });
+
+    ['input','keyup','change'].forEach(ev => filterEl.addEventListener(ev, render));
+    clearBtn.addEventListener('click', ()=>{ filterEl.value=''; eventBuf=[]; render(); });
+    reloadBtn.addEventListener('click', ()=>{ eventBuf=[]; render(); loadRecent(50); refreshMemorySummary(); });
+
+    // initial
+    loadRecent(50);
+    refreshMemorySummary();
+    setInterval(refreshMemorySummary, 8000); // periodic fallback poll
+  </script>
+</body>
+</html>
