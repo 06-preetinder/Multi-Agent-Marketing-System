@@ -5,7 +5,7 @@ Optimization — with a polyglot memory architecture (short-term, long-term,
 and episodic memory in SQLite; semantic knowledge graph in Neo4j) and a live
 dashboard that makes agent activity and memory writes visible in real time.
 
-**Live demo:** _add your Render URL here once deployed_
+**Live demo:** https://multi-agent-marketing-system.onrender.com/
 
 ## What it does
 
